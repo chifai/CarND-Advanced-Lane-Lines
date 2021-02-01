@@ -2,7 +2,6 @@ import json
 import numpy as np
 import cv2
 class CImgProcessor():
-    
     def __init__(self):
         self.__nx = 9
         self.__ny = 6
@@ -35,11 +34,8 @@ class CImgProcessor():
         warped = cv2.warpPerspective(undist, M, img_size)
         return warped
 
-
-
+"""
 p = CImgProcessor()
-
-# undist = p.undistorted('camera_cal/calibration1.jpg')
-# undist = p.undistorted('test_images/straight_lines1.jpg')
 w = p.unwrap('camera_cal/calibration3.jpg', 9, 6)
 cv2.imwrite('image_process/cali3_uw.jpg', w)
+"""
