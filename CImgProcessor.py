@@ -13,32 +13,31 @@ class CImgProcessor():
             self.__cam_mtx = np.array(data['camera_matrix'])
             self.__dist_coeff = np.array(data['dist_coeff'])
 
-    def undistorted(self, img_path):
-        img = cv2.imread(img_path)
-        undist = cv2.undistort(img, self.__cam_mtx, self.__dist_coeff, None, self.__cam_mtx)
+    def read_image(self, img_path):
+        return cv2.imread(img_path)
+
+    def undistorted(self, cv2_img):
+        undist = cv2.undistort(cv2_img, self.__cam_mtx, self.__dist_coeff, None, self.__cam_mtx)
         return undist
 
-    def unwrap(self, chessboard_img_path, nx, ny):
-        img = cv2.imread(chessboard_img_path)
-        undist = cv2.undistort(img, self.__cam_mtx, self.__dist_coeff, None, self.__cam_mtx)
-        gray = cv2.cvtColor(undist, cv2.COLOR_BGR2GRAY)
+    def unwrap(self, cv2_img, x1 = 450, y1 = 520, x2 = 720, y2 = 100, offset = 0):        
+        # cv2_img shape: 720, 1280, 3
+        src_corners = [[x1, y1], [x1, cv2_img.shape[1] - y1], [x2, cv2_img.shape[1] - y2], [x2, y2]]
+        for el in src_corners: el.reverse()
+        img_size = (cv2_img.shape[1], cv2_img.shape[0])
+        dst_corners = [  [offset, offset], [img_size[0] - offset, offset], 
+                            [img_size[0]-offset, img_size[1] - offset], [offset, img_size[1] - offset]]
 
-        ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
-
-        offset = 100
-        img_size = (gray.shape[1], gray.shape[0])
-
-        src = np.float32([corners[0], corners[nx - 1], corners[nx * ny - 1], corners[nx * (ny - 1)]])
-        dst = np.float32([  [offset, offset], [img_size[0]-offset, offset], 
-                            [img_size[0]-offset, img_size[1]-offset], [offset, img_size[1]-offset]])
+        src = np.float32(src_corners)
+        dst = np.float32(dst_corners)
         M = cv2.getPerspectiveTransform(src, dst)
-        warped = cv2.warpPerspective(undist, M, img_size)
+        warped = cv2.warpPerspective(cv2_img, M, img_size)
         return warped
 
-    def gradient_thres(self, img, thres_min = 20, thres_max = 100):
+    def gradient_thres(self, cv2_img, thres_min = 20, thres_max = 100):
         # img should be undistorted
         # output binary by gradient
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
 
         # Sobel x
         sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0) # Take the derivative in x
@@ -48,15 +47,15 @@ class CImgProcessor():
         # Threshold x gradient
         sxbinary = np.zeros_like(scaled_sobel)
         sxbinary[(scaled_sobel >= thres_min) & (scaled_sobel <= thres_max)] = 1
-        
+
         return sxbinary
 
-    def dir_thres(self, img, sobel_kernel = 3, thresh = (0.7, 1.3)):
+    def dir_thres(self, cv2_img, sobel_kernel = 3, thresh = (0.7, 1.3)):
         # 0) Change gray scale
-        cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
         # 1) Take the absolute value of gradient in x and y separately
-        absSobelX = np.absolute(cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=sobel_kernel))
-        absSobelY = np.absolute(cv2.Sobel(img, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
+        absSobelX = np.absolute(cv2.Sobel(cv2_img, cv2.CV_64F, 1, 0, ksize=sobel_kernel))
+        absSobelY = np.absolute(cv2.Sobel(cv2_img, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
 
         # 2) calculate the direction
         direction = np.arctan2(absSobelY, absSobelX)
@@ -67,9 +66,9 @@ class CImgProcessor():
         
         return binary
 
-    def saturation_thres(self, img, sat_min = 170, sat_max = 255):
-        # img is undistorted
-        hls = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+    def saturation_thres(self, cv2_img, sat_min = 170, sat_max = 255):
+        # img should be undistorted
+        hls = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2HLS)
         sat_ch = hls[:,:,2]     # saturation channel
         binary = np.zeros_like(sat_ch)
         binary[(sat_ch >= sat_min) & (sat_ch <= sat_max)] = 1
