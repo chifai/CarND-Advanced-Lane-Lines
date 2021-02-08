@@ -8,10 +8,16 @@ class CImgProcessor():
         self.__ny = 6
         self.__cam_mtx = None
         self.__dist_coeff = None
+        self.__unwraped_mat = None
+        self.__wraped_mat = None
+        self.__img_size = None
         with open('camera_cali_result.json', 'r') as read_file:
             data = json.load(read_file)
             self.__cam_mtx = np.array(data['camera_matrix'])
             self.__dist_coeff = np.array(data['dist_coeff'])
+
+    def get_wraped_mat(self):
+        return self.__wraped_mat
 
     def read_image(self, img_path):
         return cv2.imread(img_path)
@@ -24,14 +30,19 @@ class CImgProcessor():
         # cv2_img shape: 720, 1280, 3
         src_corners = [[x1, y1], [x1, cv2_img.shape[1] - y1], [x2, cv2_img.shape[1] - y2], [x2, y2]]
         for el in src_corners: el.reverse()
-        img_size = (cv2_img.shape[1], cv2_img.shape[0])
-        dst_corners = [  [offset, offset], [img_size[0] - offset, offset], 
-                            [img_size[0]-offset, img_size[1] - offset], [offset, img_size[1] - offset]]
+        self.__img_size = (cv2_img.shape[1], cv2_img.shape[0])
+        dst_corners = [  [offset, offset], [self.__img_size[0] - offset, offset], 
+                            [self.__img_size[0]-offset, self.__img_size[1] - offset], [offset, self.__img_size[1] - offset]]
 
         src = np.float32(src_corners)
         dst = np.float32(dst_corners)
-        M = cv2.getPerspectiveTransform(src, dst)
-        warped = cv2.warpPerspective(cv2_img, M, img_size)
+        self.__unwraped_mat = cv2.getPerspectiveTransform(src, dst)
+        self.__wraped_mat = np.linalg.inv(self.__unwraped_mat)
+        unwarped = cv2.warpPerspective(cv2_img, self.__unwraped_mat, self.__img_size)
+        return unwarped
+
+    def wrap(self, cv2_img):
+        warped = cv2.warpPerspective(cv2_img, self.__wraped_mat, self.__img_size)
         return warped
 
     def gradient_thres(self, cv2_img, thres_min = 20, thres_max = 100):
@@ -50,26 +61,37 @@ class CImgProcessor():
 
         return sxbinary
 
-    def dir_thres(self, cv2_img, sobel_kernel = 3, thresh = (0.7, 1.3)):
-        # 0) Change gray scale
-        cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
+    def dir_thres(self, gray_img, sobel_kernel = 15, dir_thres = (0.7, 1.3)):
         # 1) Take the absolute value of gradient in x and y separately
-        absSobelX = np.absolute(cv2.Sobel(cv2_img, cv2.CV_64F, 1, 0, ksize=sobel_kernel))
-        absSobelY = np.absolute(cv2.Sobel(cv2_img, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
+        absSobelX = np.absolute(cv2.Sobel(gray_img, cv2.CV_64F, 1, 0, ksize=sobel_kernel))
+        absSobelY = np.absolute(cv2.Sobel(gray_img, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
 
         # 2) calculate the direction
         direction = np.arctan2(absSobelY, absSobelX)
-        
+        binary = np.zeros(direction.shape, dtype=np.uint8)
         # 3) Create a binary mask where direction thresholds are met
-        binary = np.zeros_like(direction)
-        binary[(direction >= thresh[0]) & (direction <= thresh[1])] = 1
-        
+        #binary = np.uint8(np.zeros_like(direction))
+        binary[(direction >= dir_thres[0]) & (direction <= dir_thres[1])] = 1
+
+        return binary
+
+    def mag_thres(self, gray_img, sobel_kernel = 3, mag_thres = (40, 255)):
+        # 1) Take the absolute value of gradient in x and y separately
+        sobelX = cv2.Sobel(gray_img, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
+        sobelY = cv2.Sobel(gray_img, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
+
+        mag = np.sqrt(sobelX ** 2 + sobelY ** 2)
+        mag = np.uint8(255 * mag / np.max(mag))
+
+        binary = np.zeros(mag.shape, dtype=np.uint8)
+        binary[(mag >= mag_thres[0]) & (mag <= mag_thres[1])] = 1
+
         return binary
 
     def saturation_thres(self, cv2_img, sat_min = 170, sat_max = 255):
         # img should be undistorted
         hls = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2HLS)
         sat_ch = hls[:,:,2]     # saturation channel
-        binary = np.zeros_like(sat_ch)
+        binary = np.zeros(sat_ch.shape, dtype=np.uint8)
         binary[(sat_ch >= sat_min) & (sat_ch <= sat_max)] = 1
         return binary

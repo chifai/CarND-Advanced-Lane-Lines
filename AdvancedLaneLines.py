@@ -1,34 +1,60 @@
+import numpy as np
 from numpy.core.fromnumeric import size
 from CImgProcessor import CImgProcessor
 from CLocateLines import CLocateLines
+from CLine import Line
 import cv2
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 import os
+from moviepy.editor import VideoFileClip
 
-tif = 'test_images/'
+
 ImgPro = CImgProcessor()
 LL = CLocateLines()
 
-fList = os.listdir(tif)
-for i in range(fList.__len__()):
-    # read undistorted and unwraped image
-    img = ImgPro.read_image(tif + fList[i])
+LeftLane = Line()
+RightLane = Line()
+
+def process_image(img):
+    # undistorted
     undist = ImgPro.undistorted(img)
-    unwrap = ImgPro.unwrap(undist, 450, 530, 650, 150, 0)
+    unwrap = ImgPro.unwrap(undist, 450, 530, 720, 80, 0)
+
+    # take saturation and gradient threshol
 
     # take saturation and gradient threshold
-    bin = ImgPro.saturation_thres(unwrap, 170, 255)
-    bin |= ImgPro.gradient_thres(unwrap)
-    bin *= 255
+    gray = cv2.cvtColor(unwrap, cv2.COLOR_BGR2GRAY)
+    bin_dir = ImgPro.dir_thres(gray, 15, (0.7, 1.2))
+    bin_mag = ImgPro.mag_thres(gray)
+    bin_sat = ImgPro.saturation_thres(unwrap, 130, 255)
+    bin = np.zeros(bin_dir.shape, dtype=np.uint8)
+    bin[((bin_dir > 0) & (bin_mag > 0)) | (bin_sat > 0)] = 255
 
     LL.set_binary_img(bin)
-    leftx, lefty, rightx, righty, out_img = LL.find_lane_pixels()
-    cv2.imwrite('image_process/bin_slidingwindow/' + fList[i], out_img)
 
-    #cv2.imshow('f1', undist)
-    #cv2.waitKey(0)
+    if LeftLane.detected is False or RightLane.detected is False:
+        [LeftLane.best_fit, RightLane.best_fit] = LL.sliding_window()
+    else:
+        best_fit = LL.fit_polynomial(LeftLane.best_fit, RightLane.best_fit)
+        if best_fit.__len__() == 0:
+            [LeftLane.best_fit, RightLane.best_fit] = LL.sliding_window()
+        else:
+            LeftLane.best_fit = best_fit[0]
+            RightLane.best_fit = best_fit[1]
+
+    LeftLane.detected = True
+    RightLane.detected = True
+
+    visImg = LL.visualize(LeftLane.best_fit, RightLane.best_fit)
+    wrap = ImgPro.wrap(visImg)
+
+    combined = cv2.addWeighted(undist, 1, wrap, 0.3, 0)
+
+    return combined
 
 
-#plt.imshow(bin, cmap='gray')
-#plt.show()
+video_name = 'project_video.mp4'
+white_output = 'output_images/' + video_name
+
+clip1 = VideoFileClip(video_name)
+white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
+white_clip.write_videofile(white_output, audio=False)
