@@ -31,14 +31,14 @@ def process_binary(img, bUnwrap = True):
     gray = cv2.cvtColor(pro_img, cv2.COLOR_BGR2GRAY)
     # take saturation and gradient threshold
     bin_dir = ImgPro.dir_thres(gray, 15, (0.7, 1.2))
-    bin_mag = ImgPro.mag_thres(gray, 3, (20, 255))
+    bin_mag = ImgPro.mag_thres(gray, 3, (40, 255))
 
     bin = np.zeros_like(bin_dir)
     bin_sat = ImgPro.saturation_thres(pro_img, 130, 255)
     bin[((bin_dir > 0) & (bin_mag > 0)) | (bin_sat > 0)] = 255
 
     if bUnwrap == True:
-        bin = ImgPro.unwrap(bin, 450, 530, 720, 80, 0)
+        bin = ImgPro.unwarp(bin, 450, 530, 720, 80, 0)
 
     return bin
 
@@ -47,7 +47,7 @@ def fit_lanelines(undist, bin):
     leftx, rightx = LL.sliding_window()
     visImg = LL.visualize(leftx, rightx)
 
-    wrap = ImgPro.wrap(visImg)
+    wrap = ImgPro.warp(visImg)
     combined = cv2.addWeighted(undist, 1, wrap, 0.3, 0)
     return combined
 
@@ -94,6 +94,40 @@ input_dir = 'image_process/challenge_video/ori_img/'
 output_dir = 'image_process/challenge_video/output_img/'
 output_dir2 = 'image_process/challenge_video/output_img_unwrap/'
 
+odir = 'output_images/'
+fname = 'test4.jpg'
+img = cv2.imread('test_images/' + fname)
+undist = ImgPro.undistorted(img)
+
+cv2.imwrite(odir + 'undistorted.jpg', undist)
+
+bin = process_binary(undist, False)
+
+cv2.imwrite(odir + 'wraped_binary.jpg', bin)
+
+bin = process_binary(undist, True)
+
+cv2.imwrite(odir + 'unwraped_binary.jpg', bin)
+
+LL.update(bin)
+visImg = LL.visualize()
+radius = LL.get_mean_curvature()
+deviation = LL.get_deviation()
+wrap = ImgPro.warp(visImg)
+combined = cv2.addWeighted(undist, 1, wrap, 0.3, 0)
+
+# text
+text_radius = 'Radius: ' + str(radius) + 'm'
+text_deviation = 'Deviated from center: ' + \
+    str(round(deviation, 2)) + 'm (+ve means to the right)'
+
+combined = ImgPro.add_text(combined, text_radius, (20, 60))
+combined = ImgPro.add_text(combined, text_deviation, (20, 100))
+
+cv2.imwrite(odir + 'final_result.jpg', combined)
+
+
+
 
 # time_stamp = []
 # t = 0
@@ -103,6 +137,6 @@ output_dir2 = 'image_process/challenge_video/output_img_unwrap/'
 #     t += interval
 # save_frame_from_video(movie_name, time_stamp, input_dir, 'timestamp')
 
-for i in range(20):
-    img_name = 'timestamp' + str(i) + '.jpg'
-    save_binary_process_diff(img_name, input_dir, output_dir)
+# for i in range(20):
+#     img_name = 'timestamp' + str(i) + '.jpg'
+#     save_binary_process_diff(img_name, input_dir, output_dir)

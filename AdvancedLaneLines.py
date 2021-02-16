@@ -25,13 +25,13 @@ def process_image(img):
     bin = np.zeros(bin_dir.shape, dtype=np.uint8)
     bin[((bin_dir > 0) & (bin_mag > 0)) | (bin_sat > 0)] = 255
 
-    bin = ImgPro.unwrap(bin, 450, 530, 720, 80, 0)
+    bin = ImgPro.unwarp(bin, 450, 530, 720, 80, 0)
 
     LL.update(bin)
     visImg = LL.visualize()
     radius = LL.get_mean_curvature()
     deviation = LL.get_deviation()
-    wrap = ImgPro.wrap(visImg)
+    wrap = ImgPro.warp(visImg)
     combined = cv2.addWeighted(undist, 1, wrap, 0.3, 0)
 
     # text 

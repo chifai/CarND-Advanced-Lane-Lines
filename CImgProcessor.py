@@ -26,7 +26,7 @@ class CImgProcessor():
         undist = cv2.undistort(cv2_img, self.__cam_mtx, self.__dist_coeff, None, self.__cam_mtx)
         return undist
 
-    def unwrap(self, cv2_img, x1 = 450, y1 = 520, x2 = 720, y2 = 100, offset = 0):        
+    def unwarp(self, cv2_img, x1 = 450, y1 = 520, x2 = 720, y2 = 100, offset = 0):        
         # cv2_img shape: 720, 1280, 3
         src_corners = [[x1, y1], [x1, cv2_img.shape[1] - y1], [x2, cv2_img.shape[1] - y2], [x2, y2]]
         for el in src_corners: el.reverse()
@@ -41,7 +41,7 @@ class CImgProcessor():
         unwarped = cv2.warpPerspective(cv2_img, self.__unwraped_mat, self.__img_size)
         return unwarped
 
-    def wrap(self, cv2_img):
+    def warp(self, cv2_img):
         warped = cv2.warpPerspective(cv2_img, self.__wraped_mat, self.__img_size)
         return warped
 
