@@ -95,3 +95,8 @@ class CImgProcessor():
         binary = np.zeros(sat_ch.shape, dtype=np.uint8)
         binary[(sat_ch >= sat_min) & (sat_ch <= sat_max)] = 1
         return binary
+
+    def add_text(self, cv2_img, text, position,
+    font = cv2.FONT_HERSHEY_SIMPLEX, fontScale = 1, color = (255, 255, 255), thickness = 2):
+        return cv2.putText(cv2_img, text, position, font, fontScale,
+                    color, thickness, cv2.LINE_AA, False)

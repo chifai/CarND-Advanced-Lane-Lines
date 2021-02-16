@@ -3,18 +3,71 @@ import numpy as np
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import cv2
+from CLine import Line
 
 class CLocateLines:
-    def __init__(self, nWindows = 9, nMargin = 100, nMinPixel = 50):
+    def __init__(self, nWindows = 9, nMargin = 100, nMinPixel = 50, shape = [720, 1280], xm_per_pix = 3.7/700, ym_per_pix = 30/720):
         self.__nWindows = nWindows      # Choose the number of sliding windows
         self.__nMargin = nMargin        # Set the width of the windows +/- margin
         self.__nMinPixel = nMinPixel    # Set minimum number of pixels found to recenter window
         self.__bImg = None
+        self.__left_lane = Line(xm_per_pix, ym_per_pix)
+        self.__right_lane = Line(xm_per_pix, ym_per_pix)
 
-    def set_binary_img(self, binary_img):
+    def update(self, binary_img):
+        self.__set_binary_img(binary_img)
+
+        if self.__left_lane.detected is False or self.__right_lane.detected is False:
+            lanes_xy = self.__sliding_window()
+        else:
+            lanes_xy = self.__poly_fit_prev(self.__left_lane.current_fit, self.__right_lane.current_fit)
+            if lanes_xy.__len__() == 0:
+                lanes_xy = self.__sliding_window()
+
+        self.__left_lane.detected = True
+        self.__right_lane.detected = True
+
+        self.__left_lane.update(lanes_xy[0], lanes_xy[1])
+        self.__right_lane.update(lanes_xy[2], lanes_xy[3])
+
+    def visualize(self):
+        ## Visualization ##
+        # Create an image to draw on and an image to show the selection window
+        out_img = np.dstack((self.__bImg, self.__bImg, self.__bImg))*255
+        window_img = np.zeros_like(out_img)
+
+        # Generate x and y values for plotting
+        ploty = np.linspace(0, self.__bImg.shape[0] - 1, self.__bImg.shape[0])
+        ### TO-DO: Calc both polynomials using ploty, left_fit and right_fit ###
+        left_fitx = self.__left_lane.current_fit[0]*ploty**2 + self.__left_lane.current_fit[1]*ploty + self.__left_lane.current_fit[2]
+        right_fitx = self.__right_lane.current_fit[0]*ploty**2 + self.__right_lane.current_fit[1]*ploty + self.__right_lane.current_fit[2]
+
+        # Generate a polygon to illustrate the lane line area
+        # And recast the x and y points into usable format for cv2.fillPoly()
+        left_line_pts = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+        right_line_pts = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+        lane_line_poly = np.hstack((left_line_pts, right_line_pts))
+
+        # fillPoly: shape[1, 1440, 2] -> xy coordinates with 720 * 2 size
+
+        # Draw the lane onto the warped blank image
+        cv2.fillPoly(window_img, np.int_(lane_line_poly), (0,255, 0))
+        
+        return window_img
+
+    def get_mean_curvature(self):
+        left_radius = self.__left_lane.radius_of_curvature
+        right_radius = self.__right_lane.radius_of_curvature
+        return (left_radius + right_radius) // 2
+
+    def get_deviation(self):
+        # get deviated dist from center
+        return -1.0 * (self.__left_lane.line_base_pos + self.__right_lane.line_base_pos) / 2.0
+
+    def __set_binary_img(self, binary_img):
         self.__bImg = binary_img
 
-    def sliding_window(self):
+    def __sliding_window(self):
         """
         fit polynomail with sliding windows
         """
@@ -78,14 +131,9 @@ class CLocateLines:
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
 
-        return self.fit_poly(leftx, lefty, rightx, righty)
+        return [leftx, lefty, rightx, righty]
 
-    def fit_poly(self, leftx, lefty, rightx, righty):
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
-        return [left_fit, right_fit]
-
-    def fit_polynomial(self, left_fit, right_fit):
+    def __poly_fit_prev(self, left_fit, right_fit):
         """
         fit polynomail with previous coefficients
         """
@@ -113,32 +161,7 @@ class CLocateLines:
         righty = nonzeroy[right_lane_inds]
 
         if leftx.size == 0 or lefty.size == 0 or rightx.size == 0 or righty.size == 0:
-            return []
+            return None
 
         # Fit new polynomials
-        return self.fit_poly(leftx, lefty, rightx, righty)
-
-    def visualize(self, leftfit_coeff, rightfit_coeff):
-        ## Visualization ##
-        # Create an image to draw on and an image to show the selection window
-        out_img = np.dstack((self.__bImg, self.__bImg, self.__bImg))*255
-        window_img = np.zeros_like(out_img)
-
-        # Generate x and y values for plotting
-        ploty = np.linspace(0, self.__bImg.shape[0] - 1, self.__bImg.shape[0])
-        ### TO-DO: Calc both polynomials using ploty, left_fit and right_fit ###
-        left_fitx = leftfit_coeff[0]*ploty**2 + leftfit_coeff[1]*ploty + leftfit_coeff[2]
-        right_fitx = rightfit_coeff[0]*ploty**2 + rightfit_coeff[1]*ploty + rightfit_coeff[2]
-
-        # Generate a polygon to illustrate the lane line area
-        # And recast the x and y points into usable format for cv2.fillPoly()
-        left_line_pts = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-        right_line_pts = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
-        lane_line_poly = np.hstack((left_line_pts, right_line_pts))
-
-        # fillPoly: shape[1, 1440, 2] -> xy coordinates with 720 * 2 size
-
-        # Draw the lane onto the warped blank image
-        cv2.fillPoly(window_img, np.int_(lane_line_poly), (0,255, 0))
-        
-        return window_img
+        return [leftx, lefty, rightx, righty]

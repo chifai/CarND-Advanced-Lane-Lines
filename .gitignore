@@ -1,2 +1,4 @@
 __pycache__/
 image_process/
+.vscode/
+test_images/

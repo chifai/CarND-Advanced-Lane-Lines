@@ -7,50 +7,41 @@ import cv2
 import os
 from moviepy.editor import VideoFileClip
 
-
 ImgPro = CImgProcessor()
 LL = CLocateLines()
-
-LeftLane = Line()
-RightLane = Line()
 
 def process_image(img):
     # undistorted
     undist = ImgPro.undistorted(img)
-    unwrap = ImgPro.unwrap(undist, 450, 530, 720, 80, 0)
 
     # take saturation and gradient threshol
 
     # take saturation and gradient threshold
-    gray = cv2.cvtColor(unwrap, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(undist, cv2.COLOR_BGR2GRAY)
     bin_dir = ImgPro.dir_thres(gray, 15, (0.7, 1.2))
-    bin_mag = ImgPro.mag_thres(gray)
-    bin_sat = ImgPro.saturation_thres(unwrap, 130, 255)
+    bin_mag = ImgPro.mag_thres(gray, 3, (40, 255))
+    bin_sat = ImgPro.saturation_thres(undist, 130, 255)
+
     bin = np.zeros(bin_dir.shape, dtype=np.uint8)
     bin[((bin_dir > 0) & (bin_mag > 0)) | (bin_sat > 0)] = 255
 
-    LL.set_binary_img(bin)
+    bin = ImgPro.unwrap(bin, 450, 530, 720, 80, 0)
 
-    if LeftLane.detected is False or RightLane.detected is False:
-        [LeftLane.best_fit, RightLane.best_fit] = LL.sliding_window()
-    else:
-        best_fit = LL.fit_polynomial(LeftLane.best_fit, RightLane.best_fit)
-        if best_fit.__len__() == 0:
-            [LeftLane.best_fit, RightLane.best_fit] = LL.sliding_window()
-        else:
-            LeftLane.best_fit = best_fit[0]
-            RightLane.best_fit = best_fit[1]
-
-    LeftLane.detected = True
-    RightLane.detected = True
-
-    visImg = LL.visualize(LeftLane.best_fit, RightLane.best_fit)
+    LL.update(bin)
+    visImg = LL.visualize()
+    radius = LL.get_mean_curvature()
+    deviation = LL.get_deviation()
     wrap = ImgPro.wrap(visImg)
-
     combined = cv2.addWeighted(undist, 1, wrap, 0.3, 0)
 
-    return combined
+    # text 
+    text_radius = 'Radius: ' + str(radius) + 'm'
+    text_deviation = 'Deviated from center: ' + str(round(deviation, 2)) + 'm (+ve means to the right)'
 
+    combined = ImgPro.add_text(combined, text_radius, (20, 60))
+    combined = ImgPro.add_text(combined, text_deviation, (20, 100))
+
+    return combined
 
 video_name = 'project_video.mp4'
 white_output = 'output_images/' + video_name
