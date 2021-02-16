@@ -22,6 +22,8 @@ The goals / steps of this project are the following:
 [image7]: ./output_images/final_result.jpg "Final Result"
 
 [video1]: ./output_images/project_video.mp4 "Project Video"
+[video2]: ./output_images/challenge_video_SlidingWindowOnly.mp4 "Challenge Video"
+[video3]: ./output_images/harder_challenge_video_SlidingWindowOnly.mp4 "Harder Challenge Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -61,6 +63,7 @@ Take below original image as an example to illustrate the following image proces
 
 A thresholded binary image is combined by three criterias: direction, magnitude and saturation, with following logical rule:
 `((direction AND magnitude) OR saturation)`
+
 *Refer to `AdvancedLaneLines.py` function `process_image` for parameters setting*
 
 **Warped Binary Image**
@@ -76,7 +79,7 @@ Those two points are (450, 520) & (720, 100).
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-`CLocatelines` is a class to identify lane-line pixels and save the results to `Cline` class
+`CLocatelines` is a class to identify lane-line pixels and save the results to `CLine` class
 1. At first time, `CLocatelines.__sliding_window()`is used to fit polynomial for both left and right lane lines.
 2. After that, `CLocatelines.__poly_fit_prev()` is used to fit polynomial by utilitizing previous polynomial coefficients.
 
@@ -97,12 +100,21 @@ At the end, the detected lane line area is marked. Refer to the following image 
 
 #### 1. Provide a link to your final video output. Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result][video1]
+1. Works fine with project_video (sliding window method used at first frame, and polynomials are fit by previous coefficient later on)
+[project_video][video1]
+
+2. Terrible with challenge_video (only sliding window method is used during this video, still not good enough)
+[challenge_video][video2]
+
+3. Much worse with harder_challenge_video (onlt sliding window method is used as well
+[harder_challenge_video][video3]
 
 ---
 
 ### Discussion
 
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+#### 1. Briefly discuss any problems / issues you faced in your implementation of this project. Where will your pipeline likely fail? What could you do to make it more robust?
 
-1. My method works fine when dealing with project_video, but works terribly with those two challenge videos.
+My method works fine when dealing with `project_video`, but works terribly with those two challenge videos.
+For challenge_video: The shadow and inconsistent color on the ground yield a much greater contrast than the lane lines do, confusing the method used here.
+For harder_challenge_video: The lane lines have much greater curvature and the lightness of the video varies vigorously. Both are the reasons lead to the failure. Using sliding window method all the time to fit polynomials can improve a bit, but still not good enough. So far I am running out of ideas to make them better.
