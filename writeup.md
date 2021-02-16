@@ -100,6 +100,9 @@ At the end, the detected lane line area is marked. Refer to the following image 
 
 #### 1. Provide a link to your final video output. Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
+Videos are rendered in `AdvancedLaneLine.py` program. Function `process_image` is to render each image with the use of `CImgProcessor` and `CLocateLines` classes.
+Below are the links to three videos rendered.
+
 1. Works fine with project_video (sliding window method used at first frame, and polynomials are fit by previous coefficient later on)
 [project_video][video1]
 
