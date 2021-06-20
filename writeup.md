@@ -19,11 +19,11 @@ The goals / steps of this project are the following:
 [image4]: ./output_images/undistorted.jpg "Undistorted"
 [image5]: ./output_images/warped_binary.jpg "Warped Binary Example"
 [image6]: ./output_images/unwarped_binary.jpg "Unwarped Binary Example"
-[image7]: ./output_images/final_result.jpg "Final Result"
+[image7]: ./output_images/final_result.png "Final Result"
 
 [video1]: ./output_images/project_video.mp4 "Project Video"
-[video2]: ./output_images/challenge_video_SlidingWindowOnly.mp4 "Challenge Video"
-[video3]: ./output_images/harder_challenge_video_SlidingWindowOnly.mp4 "Harder Challenge Video"
+[video2]: ./output_images/challenge_video.mp4 "Challenge Video"
+[video3]: ./output_images/harder_challenge_video.mp4 "Harder Challenge Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -82,6 +82,7 @@ Those two points are (450, 520) & (720, 100).
 `CLocatelines` is a class to identify lane-line pixels and save the results to `CLine` class
 1. At first time, `CLocatelines.__sliding_window()`is used to fit polynomial for both left and right lane lines.
 2. After that, `CLocatelines.__poly_fit_prev()` is used to fit polynomial by utilitizing previous polynomial coefficients.
+3. Radius of left and right lines, lane width are checked if they are within acceptable ranges. If not, EMWA method is used to obtain weighted result of the fitting polynomial coefficients by considering the previous result too. Or Sliding Window method is repeated once again if the result is way too worse.
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
@@ -103,13 +104,14 @@ At the end, the detected lane line area is marked. Refer to the following image 
 Videos are rendered in `AdvancedLaneLine.py` program. Function `process_image` is to render each image with the use of `CImgProcessor` and `CLocateLines` classes.
 Below are the links to three videos rendered.
 
-1. Works fine with project_video (sliding window method used at first frame, and polynomials are fit by previous coefficient later on)
+#### project_video
+1. Pretty good on `project_video`, lanes are tracked in most of the time despite some disturbance from the shadows
 [project_video][video1]
 
-2. Terrible with challenge_video (only sliding window method is used during this video, still not good enough)
+2. Quite terrible with `challenge_video`, but I guess more than 60% of the time is usable result.
 [challenge_video][video2]
 
-3. Much worse with harder_challenge_video (onlt sliding window method is used as well
+3. Very bad with `harder_challenge_video`, I would not want to be in this car.
 [harder_challenge_video][video3]
 
 ---
@@ -118,6 +120,8 @@ Below are the links to three videos rendered.
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project. Where will your pipeline likely fail? What could you do to make it more robust?
 
-My method works fine when dealing with `project_video`, but works terribly with those two challenge videos.
-For challenge_video: The shadow and inconsistent color on the ground yield a much greater contrast than the lane lines do, confusing the method used here.
-For harder_challenge_video: The lane lines have much greater curvature and the lightness of the video varies vigorously. Both are the reasons lead to the failure. Using sliding window method all the time to fit polynomials can improve a bit, but still not good enough. So far I am running out of ideas to make them better.
+Having added sanity check, and putting previous result into considerations to each processed image. Better results are obtained from all three videos. Most of the time in `project_video`, it works fine with finding the lane. Even with some disturbance from the tree's shadow, the result is quite robust.
+
+However it is quite terrible with `challenge_video`. lanes finding are often misled by the shadow and the mark on the ground. One of the ways to distinugish from **shadow** and **real lane** could be using color. Lane color should only be white or yellow, while shadow's color is often different scale of grey.
+
+The same algorithm applied on `harder_challenge_video` is much worse. Constant change in video brightness, shadow of the trees affect the processed image a lot. And sharp turns make results prior to current frame more unreliable, weight of the previous frame should be smaller in such case.
