@@ -1,34 +1,67 @@
 # This is to poly fit the lanelines by sliding window method
 import numpy as np
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 import cv2
+import csv
 from CLine import Line
 
 class CLocateLines:
-    def __init__(self, nWindows = 9, nMargin = 100, nMinPixel = 50, shape = [720, 1280], xm_per_pix = 3.7/700, ym_per_pix = 30/720):
+    def __init__(self, nWindows = 9, nMargin = 100, nMinPixel = 50, shape = [720, 1280],
+    xm_per_pix = 3.7/700, ym_per_pix = 30/720, data_file = 'data.txt'):
         self.__nWindows = nWindows      # Choose the number of sliding windows
         self.__nMargin = nMargin        # Set the width of the windows +/- margin
         self.__nMinPixel = nMinPixel    # Set minimum number of pixels found to recenter window
         self.__bImg = None
         self.__left_lane = Line(xm_per_pix, ym_per_pix)
         self.__right_lane = Line(xm_per_pix, ym_per_pix)
+        # file = open(data_file, mode = 'w')
+        # self.__csvwriter = csv.writer(file, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        self.process_method = 'None'
 
     def update(self, binary_img):
         self.__set_binary_img(binary_img)
 
         if self.__left_lane.detected is False or self.__right_lane.detected is False:
             lanes_xy = self.__sliding_window()
+            self.process_method = 'FirstSliding'
+            self.__left_lane.detected = True
+            self.__right_lane.detected = True
         else:
             lanes_xy = self.__poly_fit_prev(self.__left_lane.current_fit, self.__right_lane.current_fit)
-            if lanes_xy.__len__() == 0:
+            self.process_method = 'PrevFit'
+            if lanes_xy is None or lanes_xy.__len__() == 0:
                 lanes_xy = self.__sliding_window()
+                self.process_method = 'ExceptionSliding'
 
-        self.__left_lane.detected = True
-        self.__right_lane.detected = True
+        l_current_fit, l_radius, l_distance = self.__left_lane.try_fitting(lanes_xy[0], lanes_xy[1])
+        r_current_fit, r_radius, r_distance = self.__right_lane.try_fitting(lanes_xy[2], lanes_xy[3])
 
-        self.__left_lane.update(lanes_xy[0], lanes_xy[1])
-        self.__right_lane.update(lanes_xy[2], lanes_xy[3])
+        lane_width = abs(l_distance - r_distance)
+
+        if l_radius == 0.0 or r_radius == 0.0:
+            radius_ratio = 1.0
+        elif l_radius < r_radius:
+            radius_ratio = l_radius / r_radius
+        else:
+            radius_ratio = r_radius / l_radius
+
+        if radius_ratio < 0.1 or (lane_width < 3.0 or lane_width > 4.5):
+            # result is too worse, do sliding window again
+            lanes_xy = self.__sliding_window()
+            l_current_fit, l_radius, l_distance = self.__left_lane.try_fitting(lanes_xy[0], lanes_xy[1])
+            r_current_fit, r_radius, r_distance = self.__right_lane.try_fitting(lanes_xy[2], lanes_xy[3])
+            self.process_method = 'WorseResultSliding'
+        else:
+            # TODO use EMWA to find out a better fit
+            if self.__left_lane.current_fit is not None:
+                l_current_fit = self.__left_lane.current_fit * (1.0 - radius_ratio) + l_current_fit * radius_ratio
+            if self.__right_lane.current_fit is not None:
+                r_current_fit = self.__right_lane.current_fit * (1.0 - radius_ratio) + r_current_fit * radius_ratio
+
+        # write debug data
+        # self.__csvwriter.writerow([l_radius, r_radius, radius_ratio, lane_width, self.process_method])
+
+        self.__left_lane.update(lanes_xy[0], lanes_xy[1], l_current_fit, l_radius, l_distance)
+        self.__right_lane.update(lanes_xy[2], lanes_xy[3], r_current_fit, r_radius, r_distance)
 
     def visualize(self):
         ## Visualization ##
@@ -59,6 +92,13 @@ class CLocateLines:
         left_radius = self.__left_lane.radius_of_curvature
         right_radius = self.__right_lane.radius_of_curvature
         return (left_radius + right_radius) // 2
+
+    def get_radius(self):
+        return [self.__left_lane.radius_of_curvature, self.__right_lane.radius_of_curvature]
+
+    def get_line_pos(self):
+        lane_width = abs(self.__left_lane.line_base_pos - self.__right_lane.line_base_pos)
+        return [self.__left_lane.line_base_pos, self.__right_lane.line_base_pos, lane_width]
 
     def get_deviation(self):
         # get deviated dist from center

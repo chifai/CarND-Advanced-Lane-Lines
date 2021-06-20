@@ -10,7 +10,7 @@ class CImgProcessor():
         self.__dist_coeff = None
         self.__unwraped_mat = None
         self.__wraped_mat = None
-        self.__img_size = None
+        self.__img_size = None 
         with open('camera_cali_result.json', 'r') as read_file:
             data = json.load(read_file)
             self.__cam_mtx = np.array(data['camera_matrix'])
